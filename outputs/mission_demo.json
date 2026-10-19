@@ -1,0 +1,374 @@
+{
+  "seed": 23,
+  "configuration": {
+    "width": 12,
+    "height": 12,
+    "n_pois": 4
+  },
+  "metaheuristic": {
+    "hill_climbing": {
+      "order": [
+        "POI_4",
+        "POI_1",
+        "POI_2",
+        "POI_3"
+      ],
+      "objective": 175.0
+    },
+    "simulated_annealing": {
+      "order": [
+        "POI_4",
+        "POI_1",
+        "POI_2",
+        "POI_3"
+      ],
+      "objective": 175.0
+    },
+    "selected_order": [
+      "POI_4",
+      "POI_1",
+      "POI_2",
+      "POI_3"
+    ]
+  },
+  "enforced_plan": {
+    "symbolic_cost": 162.0,
+    "execution": {
+      "plan": [
+        {
+          "name": "move",
+          "arg": "POI_4"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_4"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_4"
+        },
+        {
+          "name": "move",
+          "arg": "POI_1"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_1"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_1"
+        },
+        {
+          "name": "move",
+          "arg": "POI_2"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_2"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_2"
+        },
+        {
+          "name": "move",
+          "arg": "CHARGE_1"
+        },
+        {
+          "name": "recharge",
+          "arg": null
+        },
+        {
+          "name": "move",
+          "arg": "COMM_2"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_1"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_2"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_4"
+        },
+        {
+          "name": "move",
+          "arg": "POI_3"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_3"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_3"
+        },
+        {
+          "name": "move",
+          "arg": "COMM_2"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_3"
+        }
+      ],
+      "total_cost": 162.0,
+      "battery_left": 35,
+      "collected_count": 4,
+      "analyzed_count": 4,
+      "transmitted_count": 4,
+      "score": 238.0,
+      "success": true
+    },
+    "actions": [
+      "move:POI_4",
+      "collect:POI_4",
+      "analyze:POI_4",
+      "move:POI_1",
+      "collect:POI_1",
+      "analyze:POI_1",
+      "move:POI_2",
+      "collect:POI_2",
+      "analyze:POI_2",
+      "move:CHARGE_1",
+      "recharge:None",
+      "move:COMM_2",
+      "transmit:POI_1",
+      "transmit:POI_2",
+      "transmit:POI_4",
+      "move:POI_3",
+      "collect:POI_3",
+      "analyze:POI_3",
+      "move:COMM_2",
+      "transmit:POI_3"
+    ]
+  },
+  "optimal_free_plan": {
+    "symbolic_cost": 158.0,
+    "execution": {
+      "plan": [
+        {
+          "name": "move",
+          "arg": "POI_4"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_4"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_4"
+        },
+        {
+          "name": "move",
+          "arg": "POI_2"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_2"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_2"
+        },
+        {
+          "name": "move",
+          "arg": "POI_1"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_1"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_1"
+        },
+        {
+          "name": "move",
+          "arg": "CHARGE_1"
+        },
+        {
+          "name": "recharge",
+          "arg": null
+        },
+        {
+          "name": "move",
+          "arg": "COMM_2"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_1"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_2"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_4"
+        },
+        {
+          "name": "move",
+          "arg": "POI_3"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_3"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_3"
+        },
+        {
+          "name": "move",
+          "arg": "COMM_2"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_3"
+        }
+      ],
+      "total_cost": 158.0,
+      "battery_left": 35,
+      "collected_count": 4,
+      "analyzed_count": 4,
+      "transmitted_count": 4,
+      "score": 242.0,
+      "success": true
+    }
+  },
+  "rule_based_policy": {
+    "execution": {
+      "plan": [
+        {
+          "name": "move",
+          "arg": "POI_4"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_4"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_4"
+        },
+        {
+          "name": "move",
+          "arg": "COMM_1"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_4"
+        },
+        {
+          "name": "move",
+          "arg": "POI_3"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_3"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_3"
+        },
+        {
+          "name": "move",
+          "arg": "CHARGE_1"
+        },
+        {
+          "name": "recharge",
+          "arg": null
+        },
+        {
+          "name": "move",
+          "arg": "COMM_1"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_3"
+        },
+        {
+          "name": "move",
+          "arg": "POI_1"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_1"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_1"
+        },
+        {
+          "name": "move",
+          "arg": "POI_2"
+        },
+        {
+          "name": "collect",
+          "arg": "POI_2"
+        },
+        {
+          "name": "analyze",
+          "arg": "POI_2"
+        },
+        {
+          "name": "move",
+          "arg": "CHARGE_1"
+        },
+        {
+          "name": "recharge",
+          "arg": null
+        },
+        {
+          "name": "move",
+          "arg": "COMM_1"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_1"
+        },
+        {
+          "name": "transmit",
+          "arg": "POI_2"
+        }
+      ],
+      "total_cost": 217.0,
+      "battery_left": 74,
+      "collected_count": 4,
+      "analyzed_count": 4,
+      "transmitted_count": 4,
+      "score": 183.0,
+      "success": true
+    },
+    "actions": [
+      "move:POI_4",
+      "collect:POI_4",
+      "analyze:POI_4",
+      "move:COMM_1",
+      "transmit:POI_4",
+      "move:POI_3",
+      "collect:POI_3",
+      "analyze:POI_3",
+      "move:CHARGE_1",
+      "recharge:None",
+      "move:COMM_1",
+      "transmit:POI_3",
+      "move:POI_1",
+      "collect:POI_1",
+      "analyze:POI_1",
+      "move:POI_2",
+      "collect:POI_2",
+      "analyze:POI_2",
+      "move:CHARGE_1",
+      "recharge:None",
+      "move:COMM_1",
+      "transmit:POI_1",
+      "transmit:POI_2"
+    ]
+  }
+}

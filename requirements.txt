@@ -1,0 +1,16 @@
+# Dependencias del Proyecto 1 — Rover autónomo (Elementos de IA)
+#
+# El proyecto está implementado únicamente con la librería estándar de Python
+# (no requiere numpy, pandas ni matplotlib para ejecutarse ni para reproducir
+# los experimentos). Por eso este archivo no declara paquetes externos.
+#
+# Requisito: Python >= 3.11
+#
+# Instalación del proyecto en modo editable (recomendada):
+#   python -m venv .venv
+#   .venv\Scripts\activate        (Windows)   |   source .venv/bin/activate  (Linux/macOS)
+#   python -m pip install -e .
+#
+# Alternativa sin instalar (solo para ejecutar):
+#   PowerShell:  $env:PYTHONPATH="src"; python -m rover_ai.cli run-all
+#   Bash:        PYTHONPATH=src python -m rover_ai.cli run-all

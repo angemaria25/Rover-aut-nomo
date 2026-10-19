@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rover-autonomo-eia"
+version = "0.1.0"
+description = "Proyecto 1 - Rover autónomo para Elementos de Inteligencia Artificial"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Uso académico" }
+keywords = ["inteligencia-artificial", "busqueda", "planificacion", "metaheuristicas"]
+dependencies = []
+
+[project.optional-dependencies]
+# Solo para ejecutar el notebook en VS Code / Jupyter. El proyecto en sí no
+# necesita ninguna dependencia externa.
+notebook = ["ipykernel>=6"]
+
+[project.scripts]
+rover-ai = "rover_ai.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
