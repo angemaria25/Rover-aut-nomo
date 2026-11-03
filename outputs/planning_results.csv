@@ -1,5 +1,5 @@
 seed,method,order,plan_cost,runtime_ms
-11,optimal,,144.0,101.72779999993509
+11,optimal,,144.0,119.31720000575297
 11,hill_climbing,POI_1|POI_2|POI_4|POI_3,153.0,0.0
 11,simulated_annealing,POI_1|POI_2|POI_4|POI_3,153.0,0.0
 11,random,POI_2|POI_4|POI_3|POI_1,172.0,0.0
@@ -8,7 +8,7 @@ seed,method,order,plan_cost,runtime_ms
 11,random,POI_1|POI_2|POI_3|POI_4,182.0,0.0
 11,random,POI_1|POI_4|POI_2|POI_3,153.0,0.0
 11,random,POI_3|POI_2|POI_4|POI_1,171.0,0.0
-23,optimal,,158.0,16.332800001691794
+23,optimal,,158.0,15.788099990459159
 23,hill_climbing,POI_4|POI_1|POI_2|POI_3,162.0,0.0
 23,simulated_annealing,POI_4|POI_1|POI_2|POI_3,162.0,0.0
 23,random,POI_1|POI_3|POI_2|POI_4,206.0,0.0
@@ -17,7 +17,7 @@ seed,method,order,plan_cost,runtime_ms
 23,random,POI_3|POI_2|POI_4|POI_1,227.0,0.0
 23,random,POI_1|POI_4|POI_2|POI_3,201.0,0.0
 23,random,POI_1|POI_3|POI_4|POI_2,221.0,0.0
-37,optimal,,128.0,90.08360000007087
+37,optimal,,128.0,91.65519999805838
 37,hill_climbing,POI_3|POI_4|POI_2|POI_1,129.0,0.0
 37,simulated_annealing,POI_3|POI_4|POI_2|POI_1,129.0,0.0
 37,random,POI_4|POI_3|POI_2|POI_1,146.0,0.0
@@ -26,7 +26,7 @@ seed,method,order,plan_cost,runtime_ms
 37,random,POI_4|POI_3|POI_2|POI_1,146.0,0.0
 37,random,POI_2|POI_3|POI_1|POI_4,148.0,0.0
 37,random,POI_2|POI_3|POI_4|POI_1,145.0,0.0
-41,optimal,,129.0,105.58499999751803
+41,optimal,,129.0,95.00639999168925
 41,hill_climbing,POI_2|POI_4|POI_1|POI_3,134.0,0.0
 41,simulated_annealing,POI_2|POI_4|POI_1|POI_3,134.0,0.0
 41,random,POI_2|POI_1|POI_4|POI_3,141.0,0.0
@@ -35,7 +35,7 @@ seed,method,order,plan_cost,runtime_ms
 41,random,POI_2|POI_3|POI_1|POI_4,140.0,0.0
 41,random,POI_3|POI_4|POI_2|POI_1,142.0,0.0
 41,random,POI_3|POI_2|POI_4|POI_1,134.0,0.0
-59,optimal,,127.0,21.098400000482798
+59,optimal,,127.0,17.061499995179474
 59,hill_climbing,POI_2|POI_1|POI_3|POI_4,127.0,0.0
 59,simulated_annealing,POI_2|POI_1|POI_3|POI_4,127.0,0.0
 59,random,POI_3|POI_2|POI_1|POI_4,171.0,0.0

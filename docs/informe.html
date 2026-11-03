@@ -31,57 +31,62 @@ hr { border: none; border-top: 1px solid #ccc; margin: 10pt 0; }
 </style></head><body><h1>Proyecto 1 — Rover autónomo</h1>
 <h3>Búsqueda, planificación y metaheurísticas para la exploración de una región.</h3>
 <p><strong>Autor:</strong> Angélica María Martínez Céspedez</p>
-<p><strong>Asignatura:</strong> Elementos de Inteligencia Artificial ·</p>
+<p><strong>Asignatura:</strong> Elementos de Inteligencia Artificial</p>
 <h2>Resumen</h2>
-<p>Se implementó un agente autónomo capaz de explorar una región marciana modelada como una rejilla con costos de terreno, recolectar y analizar muestras científicas y transmitirlas, sujeto a restricciones de batería, memoria y ubicación. El sistema integra cuatro módulos que se conectan entre sí: <strong>búsqueda</strong> (BFS, DFS, Dijkstra, A* y voraz), <strong>metaheurísticas</strong> (Hill Climbing y Recocido Simulado) para decidir el orden de visita, <strong>planificación</strong> (representación simbólica elegida) con A* sobre un espacio de acciones con precondiciones, y un <strong>sistema basado en reglas</strong> (módulo opcional E). El generador de entornos es <strong>parametrizable en tamaño, estructura y puntos de carga</strong>, y <strong>garantiza que toda instancia tenga solución</strong>. Todo el código y los experimentos son reproducibles a partir de semillas fijas. Los resultados muestran que A* domina a Dijkstra (igual solución, ~52 % menos de nodos), que las metaheurísticas se acercan al óptimo (~3 %) con un presupuesto modesto, y que el planificador exacto es correcto pero no escala con el número de puntos de interés (lo que justifica precisamente usar metaheurísticas).</p>
+<p>Se implementó un agente autónomo capaz de explorar una región marciana modelada como una rejilla con costos de terreno, recolectar y analizar muestras científicas y transmitirlas, sujeto a restricciones de batería, memoria y ubicación. El sistema integra cuatro módulos que se conectan entre sí: búsqueda (BFS, DFS, Dijkstra, A* y voraz), metaheurísticas (Hill Climbing y Recocido Simulado) para decidir el orden de visita de los POI, planificación simbólica con A* sobre un espacio abstracto de acciones con precondiciones, y un sistema basado en reglas (módulo opcional E). El generador de entornos es paramétrizable en tamaño, estructura y puntos de carga, y garantiza que toda instancia tenga solución.</p>
+<p>La comparación experimental se hace con la métrica apropiada para un problema de rutas sobre instancias heterogéneas: para cada tramo se reporta el cociente entre el coste del algoritmo y el coste óptimo (o, en el caso de nodos expandidos, el cociente respecto a una referencia). Esto evita mezclar tramos de distinta longitud y permite interpretar la dispersión como variabilidad del algoritmo y no como diferencia entre escenarios distintos. En ese marco, A* obtiene la misma solución que Dijkstra en coste pero con un número claramente menor de nodos expandidos y un tiempo competitivo; las metaheurísticas se comparan frente al óptimo solo en los tamaños donde el problema todavía es calculable por enumeración, y para tamaños mayores se evalúan frente a un orden aleatorio con el mismo presupuesto de cómputo. La justificación del módulo de metaheurísticas no viene de la escala de la decisión del orden por sí sola, sino de la incapacidad del planificador exacto para seguir escalando cuando crece el número de POI.</p>
 <h2>1. Descripción y modelado del problema</h2>
-<p>El rover se mueve por una <strong>rejilla</strong> de celdas (<code>width × height</code>). Cada celda tiene un <strong>terreno</strong> con un costo de entrada: llanura (1), piedra (2), roca (3), arena fina (4) y duna (5); los obstáculos son intransitables. Sobre la rejilla se ubican cuatro tipos de puntos:</p>
-<ul><li><strong>Base</strong>: punto de recarga y de partida.</li><li><strong>Estaciones de carga</strong>: puntos de recarga adicionales (la base ya es uno de ellos).</li><li><strong>Puntos de interés (POI)</strong>: las muestras científicas que hay que procesar.</li><li><strong>Zonas de comunicación</strong>: los únicos lugares desde donde se puede transmitir.</li></ul>
-<p>El rover tiene <strong>batería</strong> (capacidad 100, se agota con las acciones y se recarga gratis en cualquier punto de recarga) y <strong>memoria</strong> (capacidad 3 muestras pendientes). El estado del agente es la posición, la batería, la memoria usada y los conjuntos de muestras recolectadas, analizadas y transmitidas.</p>
-<p>Las <strong>acciones</strong> son: <code>move</code> (desplazarse, consume batería igual al costo del terreno de destino), <code>collect</code> (10, ocupa un lugar de memoria), <code>analyze</code> (5, solo donde se recolectó), <code>transmit</code> (5, solo en una zona de comunicación, libera un lugar de memoria) y <code>recharge</code> (en la base o en una estación de carga, gratis, restaura la batería). La <strong>misión</strong> consiste en recolectar, analizar y transmitir <em>todas</em> las muestras. La restricción de memoria obliga a desviarse a transmitir cada tres muestras, y la batería obliga a planear las recargas; la combinación de ambas hace que el problema no sea un simple ruteo geográfico.</p>
-<p>La <strong>puntuación</strong> de una misión es <code>100 · (muestras transmitidas) − costo total</code>, donde el costo total es la suma de los costos de las acciones.</p>
-<p><strong>Generador parametrizable y con solución garantizada.</strong> Las instancias se generan de forma reproducible a partir de una semilla y son parametrizables en tres ejes: <strong>tamaño</strong> (<code>width</code>, <code>height</code>), <strong>estructura</strong> (la mezcla de terrenos se elige entre los perfiles <code>flat</code>, <code>default</code> y <code>rough</code>, y la densidad de obstáculos con <code>obstacle_prob</code>) e <strong>infraestructura</strong> (<code>n_charging_stations</code>). Además, el generador <strong>garantiza que la misión sea resoluble</strong>: primero conecta todos los puntos clave (si un POI queda encerrado por obstáculos, se abre un camino) y después asegura que cada punto clave sea alcanzable <strong>dentro de la capacidad de la batería</strong> desde algún punto de recarga (si no, abre un corredor llano). Así ningún tablero es irresoluble por falta de energía, que era una de las preocupaciones planteadas en clase.</p>
-<p>Se usan dos representaciones complementarias: un <strong>grafo implícito de la rejilla</strong> (estados = celdas, acciones = 4 vecinos) para la búsqueda de rutas, y un <strong>grafo de puntos clave</strong> (base, estaciones de carga, POI y zonas de comunicación) cuyas distancias se precalculan con A*, para la planificación y las metaheurísticas.</p>
+<p>El rover se mueve por una rejilla de celdas (<code>width × height</code>). Cada celda tiene un terreno con un costo de entrada: llanura (1), piedra (2), roca (3), arena fina (4) y duna (5); los obstáculos son intransitables. Sobre la rejilla se ubican cuatro tipos de puntos:</p>
+<ul><li>Base: punto de recarga y de partida.</li><li>Estaciones de carga: puntos de recarga adicionales (la base ya es uno de ellos).</li><li>POI: las muestras científicas que hay que procesar.</li><li>Zonas de comunicación: los únicos lugares desde donde se puede transmitir.</li></ul>
+<p>El rover tiene batería (capacidad 100, se agota con las acciones y se recarga gratis en cualquier punto de recarga) y memoria (capacidad 3 muestras pendientes). El estado del agente es la posición, la batería, la memoria usada y los conjuntos de muestras recolectadas, analizadas y transmitidas.</p>
+<p>Las acciones son: <code>move</code> (desplazarse, consume batería igual al costo del terreno de destino), <code>collect</code> (10, ocupa un lugar de memoria), <code>analyze</code> (5, solo donde se recolectó), <code>transmit</code> (5, solo en una zona de comunicación, libera un lugar de memoria) y <code>recharge</code> (en la base o en una estación de carga, gratis, restaura la batería). La misión consiste en recolectar, analizar y transmitir todas las muestras. La restricción de memoria obliga a desviarse a transmitir cada tres muestras, y la batería obliga a planear las recargas; la combinación de ambas hace que el problema no sea un simple ruteo geográfico.</p>
+<p>La puntuación de una misión es <code>100 · (muestras transmitidas) − costo total</code>, donde el costo total es la suma de los costos de las acciones.</p>
+<p><strong>Generador parametrizable y con solución garantizada.</strong> Las instancias se generan de forma reproducible a partir de una semilla y son parametrizables en tres ejes: tamaño (<code>width</code>, <code>height</code>), estructura (mezcla de terrenos y densidad de obstáculos) e infraestructura (<code>n_charging_stations</code>). Además, el generador garantiza que la misión sea resoluble: primero conecta todos los puntos clave y después asegura que cada punto clave sea alcanzable dentro de la capacidad de la batería desde algún punto de recarga. Así ninguna instancia es irresoluble por falta de energía.</p>
+<p>Se usan dos representaciones complementarias: un grafo implícito de la rejilla (estados = celdas, acciones = 4 vecinos) para la búsqueda de rutas, y un grafo de puntos clave (base, estaciones de carga, POI y zonas de comunicación) cuyas distancias se precalculan con A* para la planificación y las metaheurísticas.</p>
 <h2>2. Módulo de búsqueda</h2>
-<p>Se implementaron cinco algoritmos sobre la rejilla: dos <strong>no informados</strong> —<strong>BFS</strong> (anchura, minimiza el número de pasos e ignora el terreno) y <strong>DFS</strong> (profundidad, encuentra <em>una</em> ruta cualquiera)—, <strong>Dijkstra</strong> (costo uniforme, óptimo), <strong>A*</strong> con la heurística de distancia Manhattan (admisible y consistente, porque el costo mínimo de entrar a una celda es 1) y <strong>búsqueda voraz</strong> (<em>greedy best-first</em>), que es rápida pero no óptima. Este módulo resuelve la ruta de menor costo entre dos puntos, que es la pieza que reutilizan la planificación y las metaheurísticas.</p>
-<p><strong>Protocolo :</strong> 5 instancias de 16×16 con 5 POI (semillas 11, 23, 37, 41, 59). En cada instancia se resuelven los 5 tramos <code>base → POI₁ → … → POI₅</code> con los 5 algoritmos: <strong>125 corridas</strong>. Se reporta la media y la desviación estándar (no la mejor corrida).</p>
+<p>Se implementaron cinco algoritmos sobre la rejilla: dos no informados — BFS y DFS —, Dijkstra, A* con la heurística de distancia Manhattan y una búsqueda voraz. Este módulo resuelve la ruta de menor costo entre dos puntos, y es la pieza que reutilizan la planificación y las metaheurísticas.</p>
+<p><strong>Protocolo experimental.</strong> Se evaluaron 5 instancias de 16×16 con 5 POI (semillas 11, 23, 37, 41, 59). En cada instancia se resolvieron 5 tramos, de forma que se compararon 25 tramos por algoritmo. Para evitar mezclar tramos de distinta longitud, la comparación se hace con un cociente por tramo:</p>
+<ul><li><code>q = costo_algoritmo / costo_optimo</code></li><li><code>q_n = nodos_expandidos_algoritmo / nodos_expandidos_dijkstra</code></li></ul>
+<p>La dispersión se reporta sobre esos cocientes, no sobre la suma de costos de tramos heterogéneos. Los tiempos se reportan también como media ± desviación sobre las mismas ejecuciones.</p>
 <table>
 <thead><tr>
 <th>Algoritmo</th>
-<th>Costo de ruta</th>
-<th>Nodos expandidos</th>
+<th>Cociente de costo <code>q</code> vs Dijkstra</th>
+<th>Cociente de nodos <code>q_n</code> vs Dijkstra</th>
 <th>Tiempo (ms)</th>
 </tr></thead>
 <tbody>
-<tr><td>BFS</td><td>25,9 ± 15,9</td><td>104,9 ± 64,6</td><td>0,13</td></tr>
-<tr><td>DFS</td><td>120,0 ± 59,9</td><td>121,6 ± 57,1</td><td>0,16</td></tr>
-<tr><td>Dijkstra</td><td><strong>18,4</strong> ± 10,6</td><td>99,4 ± 67,8</td><td>0,17</td></tr>
-<tr><td>A*</td><td><strong>18,4</strong> ± 10,6</td><td><strong>47,8</strong> ± 42,6</td><td><strong>0,10</strong></td></tr>
-<tr><td>Voraz</td><td>27,2 ± 17,2</td><td>12,5 ± 8,2</td><td>0,03</td></tr>
+<tr><td>BFS</td><td>1,39 ± 0,28</td><td>1,19 ± 0,40</td><td>0,13 ± 0,04</td></tr>
+<tr><td>DFS</td><td>10,07 ± 17,73</td><td>4,89 ± 9,77</td><td>0,16 ± 0,05</td></tr>
+<tr><td>Dijkstra</td><td>1,00 ± 0,00</td><td>1,00 ± 0,00</td><td>0,17 ± 0,06</td></tr>
+<tr><td>A*</td><td>1,00 ± 0,00</td><td>0,46 ± 0,18</td><td>0,10 ± 0,03</td></tr>
+<tr><td>Voraz</td><td>1,44 ± 0,31</td><td>0,16 ± 0,10</td><td>0,03 ± 0,01</td></tr>
 </tbody></table>
-<p><strong>Análisis :</strong> Dijkstra y A* devuelven rutas del mismo costo (ambos óptimos), pero A* expande ~52 % menos nodos y es más rápido: la heurística guía la búsqueda sin perder optimalidad. El <strong>voraz</strong> es el más rápido y el que menos nodos explora, pero paga un <strong>48 % más de costo</strong>. Las búsquedas <strong>no informadas</strong> confirman por qué hace falta la información del terreno: <strong>BFS</strong> minimiza pasos, no costo, y termina un 41 % más caro que el óptimo; <strong>DFS</strong> es el peor con diferencia (120 frente a 18,4), porque encuentra la primera ruta que aparece sin ninguna noción de calidad. En consecuencia, <strong>A* es la opción por defecto</strong> en el resto del sistema.</p>
-<p><strong>Comparación entre estructuras :</strong> Para comprobar que los algoritmos se comportan igual en "sistemas" distintos, se repitió la búsqueda con el mismo tamaño (14×14, 5 POI) pero con tres <strong>perfiles de estructura</strong>: <code>flat</code> (casi todo llano), <code>default</code> y <code>rough</code> (predominan roca y duna). El costo óptimo (A*) pasa de <strong>10,4</strong> (<code>flat</code>) a <strong>14,3</strong> (<code>default</code>) y a <strong>18,2</strong> (<code>rough</code>): la estructura del terreno cambia el costo en un 75 %, y el orden entre algoritmos se mantiene (ver Figura A4 y Tabla B3). Esto valida el generador parametrizable: las comparaciones no dependen de un único mapa.</p>
+<p><strong>Análisis.</strong> Dijkstra y A* devuelven rutas del mismo coste (ambos óptimos), por eso su cociente de costo es exactamente <code>q = 1,00 ± 0,00</code>. La diferencia aparece en esfuerzo de búsqueda: A* usa <code>q_n = 0,46 ± 0,18</code>, es decir, expande en promedio ~54 % menos nodos que Dijkstra en comparación pareada por tramo. El algoritmo voraz es el más rápido y el que menos nodos recorre, pero paga un coste mayor. BFS y DFS confirman por qué hace falta la información del terreno: minimizan pasos o encuentran una ruta rápida, pero no optimizan el coste del terreno. En consecuencia, A* es la opción por defecto en el resto del sistema.</p>
+<p><strong>Comparación entre estructuras.</strong> Para comprobar que los algoritmos se comportan igual en sistemas distintos, se repitió la búsqueda con el mismo tamaño y número de POI pero con tres perfiles de estructura: <code>flat</code>, <code>default</code> y <code>rough</code>. El coste óptimo (A*) pasa de 10,4 (flat) a 14,3 (default) y a 18,2 (rough). Esto muestra que el coste real cambia con la dureza del terreno, pero el orden entre algoritmos se mantiene. Este análisis valida el generador parametrizable: las conclusiones no dependen de un solo mapa.</p>
 <h2>3. Módulo de metaheurísticas</h2>
-<p><strong>Qué se decide y por qué :</strong> El planificador exacto (Sección 4) se vuelve intratable al crecer el número de POI: si hay <em>n</em> POI, el número de órdenes de visita posibles es <em>n!</em>. Por eso se ataca directamente la <strong>permutación de visita de los POI</strong> con metaheurísticas, y se le pasa el orden propuesto al planificador.</p>
-<ul><li><strong>Representación:</strong> una permutación de los POI. <strong>Vecindad:</strong> intercambiar dos posiciones.</li><li><strong>Función objetivo:</strong> costo estimado de recorrer los POI en ese orden. Construye la ruta respetando la</li></ul>
-<p><strong>capacidad de memoria</strong> (inserta una desviación a la zona de comunicación más cercana cada 3 muestras), termina en el punto de recarga más cercano, usa las <strong>distancias reales</strong> (A*) y suma las acciones obligatorias de cada muestra. Está deliberadamente <strong>alineada con el plan real</strong>.</p>
-<ul><li><strong>Algoritmos:</strong> Hill Climbing (acepta el vecino solo si mejora) y Recocido Simulado (acepta</li></ul>
-<p>empeoramientos con probabilidad decreciente). Ambos con el <strong>mismo presupuesto: 2000 evaluaciones</strong>.</p>
-<p><strong>Protocolo :</strong> 5 instancias de 14×14 con 4 POI (mismas semillas), 8 corridas por instancia y algoritmo: <strong>80 corridas</strong> (semillas declaradas).</p>
+<p><strong>Qué se decide y por qué.</strong> El planificador exacto sobre el espacio completo de estados se vuelve intratable al aumentar el número de POI: si hay <code>n</code> POI, el número de órdenes de visita posibles es <code>n!</code>. Por eso se aborda directamente la permutación de visita de los POI con metaheurísticas y se pasa el orden propuesto al planificador.</p>
+<ul><li>Representación: una permutación de los POI.</li><li>Vecindad: intercambio de dos posiciones.</li><li>Función objetivo: coste estimado de recorrer los POI en ese orden respetando la capacidad de memoria, las</li></ul>
+<p>desviaciones a zonas de comunicación y el retorno a recarga. La función está alineada con el modelo del problema y refleja la estructura del plan real.</p>
+<ul><li>Algoritmos: Hill Climbing (acepta el vecino solo si mejora) y Recocido Simulado (acepta empeoramientos con</li></ul>
+<p>probabilidad decreciente). Ambos usan el mismo presupuesto de evaluaciones.</p>
+<p><strong>Protocolo experimental.</strong> Se generaron 5 instancias de 14×14 con 4 POI, y para cada instancia se ejecutaron 8 corridas por algoritmo, con semillas declaradas. La comparación se hace por instancia y por corrida: se reporta la media y la dispersión dentro de cada instancia, y la variabilidad global se interpreta como agregación de esa variación.</p>
 <table>
 <thead><tr>
 <th>Algoritmo</th>
 <th>Función objetivo</th>
-<th>Costo del plan real</th>
+<th>Coste del plan real</th>
 <th>Tiempo (ms)</th>
 </tr></thead>
 <tbody>
-<tr><td>Hill Climbing</td><td>155,4 ± 13,7</td><td>168,9 ± 19,7</td><td>44,6</td></tr>
-<tr><td>Recocido Simulado</td><td><strong>154,8</strong> ± 13,3</td><td><strong>168,9</strong> ± 20,0</td><td><strong>29,5</strong></td></tr>
+<tr><td>Hill Climbing</td><td>155,4 ± 13,7</td><td>168,9 ± 19,7</td><td>44,6 ± 12,1</td></tr>
+<tr><td>Recocido Simulado</td><td>154,8 ± 13,3</td><td>168,9 ± 20,0</td><td>29,5 ± 8,2</td></tr>
 </tbody></table>
-<p><strong>Análisis :</strong> Con el mismo presupuesto, ambos algoritmos alcanzan una calidad estadísticamente equivalente (diferencia de ~0,4 puntos, muy inferior a la desviación), pero el Recocido Simulado es ~34 % más rápido. Se observa una <strong>brecha de ~14 puntos (~8 %)</strong> entre el objetivo y el costo del plan: la función objetivo ignora las desviaciones extra por batería y recarga, por lo que subestima el costo real. Se reporta esta brecha de forma explícita porque condiciona la comparación con el óptimo.</p>
+<p><strong>Análisis.</strong> Con el mismo presupuesto, ambos algoritmos alcanzan una calidad descriptivamente muy parecida. Sin embargo, la formulación “estatísticamente equivalente” requiere una prueba estadística pareada sobre las mismas instancias y semillas (por ejemplo, Wilcoxon o t-test). Aquí se interpreta el resultado como “equivalencia práctica” (diferencia media ~0,4 puntos de función objetivo), pero no se reclama equivalencia estadística formal sin test. Además, la dispersión relevante para comparar estocásticos es la intra-instancia: para la función objetivo, HC tiene desviación intra-instancia media <code>±1,27</code> y SA <code>±0,00</code>; en costo de plan, HC <code>±2,60</code> y SA <code>±0,52</code>. El valor global <code>±13,x</code> queda dominado por heterogeneidad entre mapas, no por aleatoriedad del método. El Recocido Simulado es más rápido, y en este código la causa principal es operativa: SA corta antes de <code>2000</code> evaluaciones por el criterio de temperatura (<code>temp &lt; 1e-4</code>), mientras HC consume siempre el presupuesto completo. La diferencia entre la función objetivo y el coste del plan real (~8–9%) se reporta explícitamente: la función objetivo omite algunas desviaciones extras por batería y recarga, así que subestima el coste final del plan.</p>
+<p><strong>Justificación del módulo.</strong> La justificación se hizo con mediciones concretas de escalamiento del problema de orden. En la evaluación exacta por fuerza bruta del orden (misma función objetivo), el tiempo medio fue: <code>n=4</code> → <code>0,51 ms</code>, <code>n=5</code> → <code>3,12 ms</code>, <code>n=6</code> → <code>20,79 ms</code>, <code>n=7</code> → <code>212,59 ms</code>, <code>n=8</code> → <code>2037,33 ms</code>, <code>n=9</code> → <code>22622,47 ms</code> (una sola instancia ya tarda ~22,6 s). La explosión factorial (<code>n!</code>) vuelve inviable enumerar a medida que crece <code>n</code>.</p>
+<p>En el régimen donde sí se puede calcular exacto (hasta <code>n=6</code> en nuestras pruebas), la brecha media respecto al óptimo del orden fue: HC <code>0,00 %</code> (<code>n=4</code>), <code>0,32 %</code> (<code>n=5</code>) y <code>1,89 %</code> (<code>n=6</code>); SA <code>0,00 %</code> en <code>n=4,5,6</code> para las semillas evaluadas. En el benchmark de planificación, ambas metaheurísticas quedan a <code>+2,69 % ± 2,24 %</code> del óptimo del plan y mejoran claramente sobre el orden aleatorio (<code>+16,44 % ± 11,59 %</code>). Esta evidencia, y no una afirmación metodológica abstracta, es la que justifica el módulo D.</p>
 <h2>4. Módulo de planificación (representación simbólica elegida)</h2>
-<p>Se eligió <strong>planificación clásica</strong> en lugar de CSP. El estado del planificador es la tupla <code>(posición, batería, memoria usada, muestras recolectadas, analizadas, transmitidas)</code> y el espacio se explora con <strong>A*</strong> sobre acciones con precondiciones y efectos:</p>
+<p>Se eligió planificación clásica en lugar de CSP. El estado del planificador es la tupla <code>(posición, batería, memoria usada, muestras recolectadas, analizadas, transmitidas)</code> y el espacio se explora con A* sobre acciones con precondiciones y efectos:</p>
 <table>
 <thead><tr>
 <th>Acción</th>
@@ -94,414 +99,70 @@ hr { border: none; border-top: 1px solid #ccc; margin: 10pt 0; }
 <tr><td><code>collect(p)</code></td><td>estar en <code>p</code>, sin recolectar, memoria libre</td><td>recolectada; memoria +1</td><td>10</td></tr>
 <tr><td><code>analyze(p)</code></td><td>estar en <code>p</code>, recolectada</td><td>analizada</td><td>5</td></tr>
 <tr><td><code>transmit(p)</code></td><td>en zona de comunicación, <code>p</code> analizada</td><td>transmitida; memoria −1</td><td>5</td></tr>
-<tr><td><code>recharge</code></td><td>en la base <strong>o</strong> en una estación de carga, batería &lt; 100</td><td>batería ← 100</td><td>0</td></tr>
+<tr><td><code>recharge</code></td><td>en la base o en una estación de carga, batería &lt; 100</td><td>batería ← 100</td><td>0</td></tr>
 </tbody></table>
-<p>La <strong>meta</strong> es transmitir todas las muestras. Los movimientos entre puntos clave se resuelven con A* sobre la rejilla, lo que <strong>integra el módulo de búsqueda dentro del de planificación</strong>. La heurística del planificador es <strong>admisible</strong> y combina dos cotas inferiores: (i) las acciones aún obligatorias para cada muestra no transmitida, y (ii) una cota de movimiento dada por el <strong>árbol de expansión mínimo</strong> sobre los POI pendientes y una zona de comunicación. Al ser admisible, A* <strong>garantiza el plan óptimo</strong>.</p>
-<p><strong>Integración con las metaheurísticas :</strong> El parámetro <code>enforce_order=True</code> restringe el orden de recolección al propuesto (por la metaheurística o por las reglas): el planificador lo respeta, pero sigue decidiendo libremente cuándo recargar y cuándo transmitir. Sin este mecanismo, el planificador ignoraba el orden y las metaheurísticas no influían en la solución.</p>
-<p><strong>Validación :</strong> Cada plan se ejecuta en un <strong>simulador</strong> que comprueba las precondiciones paso a paso (que no se agote la batería, que no se exceda la memoria, que se analice en el POI y se transmita solo en zonas de comunicación). Los planes tienen entre 20 y 32 acciones; en la instancia de demostración el planificador usa explícitamente la estación de carga (<code>move:CHARGE_1</code>, <code>recharge</code>).</p>
-<p><strong>Limitación :</strong> El planificador exacto <strong>no escala</strong> con el número de POI: medimos ~0,5 s con 4 POI, ~9 s con 5 POI y ~91–141 s con 6 POI. Esta limitación es la justificación empírica del módulo de metaheurísticas y se discute en la Sección 7.</p>
+<p>La meta es transmitir todas las muestras. Los movimientos entre puntos clave se resuelven con A* sobre la rejilla, lo que integra el módulo de búsqueda dentro del de planificación.</p>
+<p>La heurística del planificador combina dos cotas inferiores: (i) las acciones aún obligatorias para cada muestra sin transmitir, y (ii) una cota de movimiento dada por el árbol de expansión mínimo sobre los POI pendientes y una zona de comunicación. Esta heurística es admisible y la implementación mantiene optimalidad porque actualiza <code>g(n)</code> y reinyecta estados en la frontera cuando encuentra un camino mejor (reapertura efectiva de nodos); no depende de una clausura rígida sin reapertura. En otras palabras, la optimalidad se entiende como optimalidad dentro del grafo abstracto de puntos clave, no como optimalidad global sobre toda la rejilla como un sistema continuo de estados físicos.</p>
+<p><strong>Integración con las metaheurísticas.</strong> El parámetro <code>enforce_order=True</code> restringe el orden de recolección al propuesto por la metaheurística o por las reglas: el planificador lo respeta, pero sigue decidiendo libremente cuándo recargar y cuándo transmitir. Sin este mecanismo, el planificador ignoraba el orden y las metaheurísticas no tenían efecto real sobre la solución.</p>
+<p><strong>Validación.</strong> Cada plan se ejecuta en un simulador que comprueba las precondiciones paso a paso: que no se agote la batería, que no se exceda la memoria, que se analice en el POI y que se transmita solo en una zona de comunicación. Los planes tienen entre 20 y 32 acciones; en la demostración se usa explícitamente la estación de carga.</p>
+<p><strong>Limitación.</strong> El planificador exacto no escala bien con el número de POI. Esta limitación es el argumento empírico para el módulo de metaheurísticas: cuando el espacio de órdenes se vuelve inmanejable, se necesita una aproximación.</p>
 <h2>5. Módulo adicional: sistema basado en reglas (módulo E, opcional)</h2>
-<p>Se implementó además un <strong>sistema de producción con encadenamiento hacia adelante</strong>, con reglas como: «si hay una muestra recolectada sin analizar en la posición actual → analizar»; «si la memoria está llena → ir a la zona de comunicación más cercana y transmitir»; «si ningún destino es alcanzable con margen → ir al punto de recarga más cercano»; «si quedan POI sin recolectar → ir al más cercano». El módulo produce un plan completo sin búsqueda exhaustiva y es totalmente <strong>explicable</strong>.</p>
+<p>Se implementó además un sistema de producción con encadenamiento hacia adelante, con reglas como “si hay una muestra recolectada sin analizar en la posición actual → analizar”; “si la memoria está llena → ir a la zona de comunicación más cercana y transmitir”; “si ningún destino es alcanzable con margen → ir al punto de recarga más cercano”; y “si quedan POI sin recolectar → ir al más cercano”. El módulo produce un plan completo sin búsqueda exhaustiva y es totalmente explicable.</p>
+<p><strong>Resolución de conflictos.</strong> Cuando se cumplen varias reglas a la vez, la política resuelve el conflicto con una jerarquía explícita de prioridades. En la implementación actual, el orden es:</p>
+<p><code>recharge &gt; transmit &gt; analyze &gt; collect &gt; goto_charge &gt; goto_comm &gt; goto_poi</code></p>
+<p>Esta prioridad se elige deliberadamente para asegurar la viabilidad del sistema: si la batería no tiene margen para volver a recargar, la recarga tiene precedencia sobre la recolección; si hay datos analizados pendientes de transmitir, se prefieren antes que seguir recolectando; y solo cuando la energía y la memoria están bajo control se activa la recolección y el movimiento hacia el siguiente POI. Así, la resolución de conflictos prioriza la seguridad energética y la completitud de la misión sobre la eficiencia local.</p>
 <table>
 <thead><tr>
 <th>Instancia</th>
 <th>Misiones completadas</th>
-<th>Costo medio</th>
+<th>Coste medio</th>
 </tr></thead>
 <tbody>
 <tr><td>12×12 / 4 POI</td><td>100 % (20/20)</td><td>183,55 ± 27,09</td></tr>
 <tr><td>14×14 / 6 POI</td><td>100 % (20/20)</td><td>291,85 ± 43,39</td></tr>
 <tr><td>16×16 / 5 POI</td><td>100 % (20/20)</td><td>279,65 ± 47,49</td></tr>
 </tbody></table>
-<p>Las reglas son rápidas (milisegundos) y <strong>completan la misión en el 100 %</strong> de las instancias, gracias a que la política reserva batería para llegar siempre a un punto de recarga. Su costo es mayor que el del planificador: en la demostración dan 217 frente a los 158 del óptimo. Es decir, se gana velocidad y explicabilidad a costa de eficiencia.</p>
+<p>Las reglas son rápidas y completan la misión en el 100 % de las instancias, aunque tienen un coste mayor que el planificador exacto. En la demostración, el sistema de reglas da 217 frente a los 158 del óptimo. La ventaja está en la velocidad y la explicabilidad; el coste se paga como compensación por no resolver el problema globalmente.</p>
 <h2>6. Resultados experimentales y análisis comparativo</h2>
-<p><strong>Protocolo (igual para todos los módulos):</strong> varias instancias (varios tamaños, varios números de POI y varias estructuras), varias corridas con <strong>semillas declaradas</strong>, <strong>presupuesto igual</strong> entre los algoritmos comparados (2000 evaluaciones por corrida en las metaheurísticas) y reporte de <strong>media y desviación</strong>, nunca de la mejor corrida. Los resultados se guardan en <code>outputs/</code> y se resumen en <code>outputs/summary.json</code>.</p>
+<p><strong>Protocolo (igual para todos los módulos).</strong> Se usan varias instancias (varios tamaños, varios números de POI y varias estructuras), varias corridas con semillas declaradas y se reporta media y desviación. La dispersión se separa en dos niveles:</p>
+<ul><li>variación entre instancias: cambia el mapa, la estructura del terreno o la disposición de los POI;</li><li>variación dentro de una instancia: distintas corridas con semillas distintas del algoritmo estocástico.</li></ul>
+<p>La comparación de algoritmos debe hacerse sobre el mismo conjunto de instancias y con la misma semilla o el mismo conjunto de réplicas. De no ser así, la desviación global refleja más la heterogeneidad de entornos que la variación del algoritmo.</p>
 <p>Los hallazgos principales son:</p>
-<p><strong>(1) Búsqueda :</strong> A* obtiene la misma solución que Dijkstra con la mitad de trabajo; BFS y DFS son peores porque ignoran el costo del terreno; el voraz es rápido pero subóptimo.</p>
-<p><strong>(2) Estructura :</strong> El costo óptimo crece con la dureza del terreno (10,4 → 14,3 → 18,2), pero el orden entre algoritmos se mantiene: las conclusiones son robustas al "sistema" elegido.</p>
-<p><strong>(3) Metaheurísticas :</strong> Hill Climbing y Recocido Simulado empatan en calidad con el mismo presupuesto; el Recocido Simulado es más rápido.</p>
-<p><strong>(4) Planificación frente a las metaheurísticas :</strong> Con el planificador exacto como referencia (12×12, 4 POI, con una estación de carga):</p>
+<p><strong>(1) Búsqueda.</strong> A* obtiene la misma solución que Dijkstra con un menor número de nodos expandidos; BFS y DFS son peores porque ignoran el coste del terreno; el voraz es más rápido pero subóptimo.</p>
+<p><strong>(2) Estructura.</strong> El coste óptimo crece con la dureza del terreno, pero el orden entre algoritmos se mantiene. Esto muestra que la conclusión no depende de una única topología de mapa.</p>
+<p><strong>(3) Metaheurísticas.</strong> Hill Climbing y Recocido Simulado tienen un comportamiento descriptivamente muy parecido con el mismo presupuesto; la diferencia de tiempo favorece a SA, pero la diferencia debe interpretarse con cuidado y, si se quiere afirmar equivalencia estadística, exige prueba estadística pareada.</p>
+<p><strong>(4) Planificación frente a las metaheurísticas.</strong> Con el planificador exacto como referencia en instancias donde el óptimo puede calcularse:</p>
 <table>
 <thead><tr>
 <th>Método</th>
-<th>Costo del plan</th>
+<th>Coste del plan</th>
 </tr></thead>
 <tbody>
-<tr><td>Óptimo (A* exacto)</td><td><strong>137,2</strong> ± 12,1</td></tr>
+<tr><td>Óptimo (A* exacto)</td><td>137,2 ± 12,1</td></tr>
 <tr><td>Recocido Simulado + planificador</td><td>141,0 ± 14,0</td></tr>
 <tr><td>Hill Climbing + planificador</td><td>141,0 ± 14,0</td></tr>
 <tr><td>Orden aleatorio + planificador</td><td>160,4 ± 27,1</td></tr>
 </tbody></table>
-<p>Las metaheurísticas quedan a ~3 % del óptimo y <strong>baten al azar en ~19 puntos</strong>, y como el azar usa el <em>mismo</em> planificador, esa diferencia se debe únicamente a la calidad del orden. Esto confirma que la formulación del problema como permutación es adecuada.</p>
-<p><strong>(5) Demostración integrada (semilla 23, 12×12, 4 POI, 1 estación de carga) :</strong> Hill Climbing y Recocido Simulado coinciden en el orden <code>POI_4 → POI_1 → POI_2 → POI_3</code>; al imponerlo, el plan forzado cuesta <strong>162</strong> frente a los <strong>158</strong> del óptimo libre (una diferencia del 2,5 %), y el planificador <strong>usa la estación de carga</strong> para recargar a mitad de misión. El sistema de reglas gasta 217 pero también completa la misión.</p>
+<p>En esas instancias, las metaheurísticas quedan muy cerca del óptimo y muestran una mejora clara frente a un orden aleatorio. La diferencia se debe únicamente a la calidad del orden, porque el planificador exacto es el mismo en todos los casos.</p>
+<p><strong>(5) Demostración integrada (semilla 23, 12×12, 4 POI, 1 estación de carga).</strong> Hill Climbing y Recocido Simulado coinciden en el orden de visita; al imponerlo, el plan forzado cuesta 162 frente a los 158 del óptimo libre, una diferencia del 2,5 %. El planificador usa la estación de carga para recargar a mitad de misión. El sistema de reglas gasta 217, pero también completa la misión y lo hace de forma explicable y rápida.</p>
+<p><strong>(6) Comparación con el óptimo en las mismas instancias.</strong> La comparación con el óptimo no debe reducirse a una instancia de demostración. La forma correcta es evaluar la brecha media en las mismas instancias en las que el óptimo es calculable y reportar la distribución del error relativo:</p>
+<p><code>gap = (costo_metodo - costo_optimo) / costo_optimo</code></p>
+<p>Aplicado al sistema de reglas en el mismo conjunto de instancias <code>12x12</code> con <code>4 POI</code>, se obtiene: <code>gap_reglas = (183,55 - 137,20) / 137,20 = +33,78 %</code>. Con esto se cuantifica explícitamente el costo de una política reactiva explicable frente a la optimización global.</p>
 <h2>7. Desafíos encontrados y cómo se resolvieron</h2>
-<ol><li><strong>La metaheurística no influía en el plan :</strong> La primera versión del planificador recalculaba el mejor</li></ol>
-<p>orden y devolvía siempre la misma solución. <em>Solución:</em> se añadió <code>enforce_order</code>, que restringe la recolección al orden propuesto.</p>
-<ol><li><strong>Función objetivo desalineada :</strong> La primera versión solo sumaba distancias e ignoraba memoria y</li></ol>
-<p>batería, así que «mejoraba» órdenes que en el plan real eran peores. <em>Solución:</em> se alineó la función con el modelo (desviaciones por memoria, distancias reales de A* y acciones obligatorias).</p>
-<ol><li><strong>Presupuesto desigual :</strong> Hill Climbing hacía menos evaluaciones que el Recocido Simulado, una</li></ol>
-<p>comparación injusta. <em>Solución:</em> mismo presupuesto (2000 evaluaciones) para ambos.</p>
-<ol><li><strong>Tableros sin solución :</strong> Algunos POI quedaban encerrados por obstáculos y, en mapas grandes, podían</li></ol>
-<p>quedar a más de una batería de distancia. <em>Solución:</em> el generador ahora <strong>garantiza conectividad y viabilidad de batería</strong> (abre corredores si hace falta) y admite <strong>estaciones de carga</strong> adicionales.</p>
-<ol><li><strong>Rendimiento del planificador exacto :</strong> Con 5–6 POI el A* tardaba minutos. <em>Solución:</em> se añadió una</li></ol>
-<p>heurística admisible más fuerte (cota de movimiento por árbol de expansión mínimo) y se ajustó el protocolo a tamaños donde el óptimo es calculable. Este hallazgo es además el argumento central a favor de las metaheurísticas.</p>
-<ol><li><strong>Rigor experimental :</strong> Se fijaron semillas, se ejecutan varias corridas por instancia y se reporta la</li></ol>
-<p>dispersión; el protocolo completo corre en ~30 s, de modo que es fácilmente reproducible.</p>
+<ul><li>La metaheurística no influía en el plan: la primera versión del planificador recalculaba el mejor orden y</li></ul>
+<p>siempre devolvía la misma solución. Solución: añadir <code>enforce_order</code>, que restringe la recolección al orden propuesto.</p>
+<ul><li>La función objetivo estaba desalineada: solo sumaba distancias e ignoraba la memoria y la batería. Solución:</li></ul>
+<p>alinearla con el modelo del problema (desviaciones por memoria, distancias reales de A* y acciones obligatorias).</p>
+<ul><li>Presupuesto desigual: Hill Climbing hacía menos evaluaciones que SA. Solución: usar el mismo presupuesto para ambos algoritmos.</li><li>Tableros sin solución: algunos POI quedaban encerrados o demasiado lejos para ser viables. Solución: el</li></ul>
+<p>generador del entorno garantiza conectividad y viabilidad energética.</p>
+<ul><li>Rendimiento del planificador exacto: con 5–6 POI el A* podía tardar minutos. Solución: mantener el modelo exacto</li></ul>
+<p>en la abstracción elegida y justificar el uso de metaheurísticas para tamaños donde el problema ya no es tratable por enumeración.</p>
+<ul><li>Rigor experimental: se fijaron semillas, se ejecutan varias corridas y la comparación se expresa en términos de</li></ul>
+<p>medias y dispersiones por instancia y por tramo, en lugar de sobre conjuntos heterogéneos mezclados.</p>
 <h2>8. Conclusiones y posibles mejoras</h2>
-<p><strong>Conclusiones :</strong> A* es el algoritmo de búsqueda más conveniente (óptimo y más eficiente que Dijkstra), y las búsquedas no informadas y el voraz quedan por detrás. Hill Climbing y Recocido Simulado encuentran órdenes de visita casi óptimos con un presupuesto pequeño y superan al azar usando el mismo planificador, lo que valida la descomposición del problema. El planificador simbólico es correcto y óptimo en instancias pequeñas, pero su costo crece muy rápido con el número de POI. El generador parametrizable (tamaño, estructura y puntos de carga) permite comparar los algoritmos en sistemas distintos sin perder reproducibilidad, y garantiza que todas las instancias tengan solución.</p>
-<p><strong>Mejoras posibles :</strong> (i) Escalar el planificador exacto con reglas de dominancia de estados o con un A* jerárquico; (ii) incorporar más metaheurísticas (búsqueda tabú, algoritmos genéticos, colonia de hormigas); (iii) añadir un módulo CSP o heurísticas tipo <code>hmax</code>/<code>hadd</code> para comparar; (iv) paralelizar las corridas; y (v) desarrollar una interfaz que anime la misión paso a paso.</p>
+<p><strong>Conclusiones.</strong> A* es la opción más conveniente para la búsqueda de rutas (óptima en la abstracción elegida y más eficiente que Dijkstra). Las búsquedas no informadas y el algoritmo voraz quedan por detrás. Hill Climbing y SA encuentran órdenes de visita muy cercanos al óptimo cuando este es calculable y superan a un orden aleatorio con el mismo presupuesto. El planificador simbólico es correcto y óptimo en la abstracción escogida, pero su coste crece muy rápido con el número de POI. El generador parametrizable da una base sólida para comparar algoritmos en distintos sistemas sin perder reproducibilidad.</p>
+<p><strong>Mejoras posibles.</strong> (i) incluir una prueba estadística pareada sobre la misma familia de instancias; (ii) ampliar la comparación con el óptimo para más tamaños y reportar la brecha media; (iii) comparar más metaheurísticas (búsqueda tabú, AG, colonia de hormigas); y (iv) estudiar mejor la eficiencia de SA frente a HC cuando el número de evaluaciones es fijo.</p>
 <h2>Referencias</h2>
-<ol><li>Russell, S.; Norvig, P. <em>Artificial Intelligence: A Modern Approach</em> (4.ª ed.). Pearson, 2021.</li><li>Hart, P.; Nilsson, N.; Raphael, B. *A Formal Basis for the Heuristic Determination of Minimum Cost</li></ol>
-<p>Paths*. IEEE Trans. Systems Science and Cybernetics, 1968.</p>
-<ol><li>Kirkpatrick, S.; Gelatt, C.; Vecchi, M. <em>Optimization by Simulated Annealing</em>. Science, 1983.</li><li>LaValle, S. <em>Planning Algorithms</em>. Cambridge University Press, 2006.</li><li>Cormen, T. et al. <em>Introduction to Algorithms</em> (3.ª ed.). MIT Press, 2009.</li></ol>
-<h2 class="appendix">Apéndice A — Figuras</h2>
-<figure><svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 384 384" font-family="Verdana, Segoe UI, sans-serif">
-<rect x="12" y="12" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="12" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="12" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="12" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="12" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="12" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="12" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="12" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="12" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="12" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="12" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="12" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="42" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="42" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="42" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="42" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="42" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="42" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="42" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="42" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="42" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="42" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="42" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="42" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="72" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="72" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="72" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="72" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="72" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="72" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="72" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="72" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="72" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="72" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="72" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="72" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="102" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="102" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="102" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="102" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="102" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="102" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="102" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="102" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="102" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="102" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="102" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="102" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="132" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="132" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="132" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="132" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="132" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="132" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="132" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="132" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="132" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="132" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="132" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="132" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="162" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="162" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="162" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="162" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="162" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="162" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="162" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="162" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="162" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="162" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="162" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="162" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="192" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="192" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="192" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="192" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="192" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="192" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="192" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="192" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="192" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="192" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="192" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="192" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="222" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="222" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="222" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="222" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="222" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="222" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="222" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="222" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="222" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="222" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="222" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="222" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="252" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="252" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="252" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="252" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="252" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="252" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="252" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="252" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="252" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="252" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="252" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="252" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="282" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="282" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="282" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="282" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="282" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="282" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="282" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="282" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="282" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="282" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="282" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="282" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="312" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="312" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="312" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="312" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="312" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="312" width="30" height="30" fill="#f3e3b8" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="312" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="312" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="312" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="312" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="312" width="30" height="30" fill="#4a4a4a" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="312" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="12" y="342" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="42" y="342" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="72" y="342" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="102" y="342" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="132" y="342" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="162" y="342" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="192" y="342" width="30" height="30" fill="#d9d9d9" stroke="#ffffff" stroke-width="1"/>
-<rect x="222" y="342" width="30" height="30" fill="#e6cf9a" stroke="#ffffff" stroke-width="1"/>
-<rect x="252" y="342" width="30" height="30" fill="#b9b9b9" stroke="#ffffff" stroke-width="1"/>
-<rect x="282" y="342" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="312" y="342" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<rect x="342" y="342" width="30" height="30" fill="#eef3e2" stroke="#ffffff" stroke-width="1"/>
-<polyline points="27.0,27.0 27.0,57.0 57.0,57.0 87.0,57.0 117.0,57.0 147.0,57.0 147.0,87.0 147.0,117.0 147.0,147.0 147.0,177.0 147.0,207.0 147.0,237.0 147.0,267.0 147.0,297.0 147.0,327.0 147.0,357.0 117.0,357.0 87.0,357.0 57.0,357.0 27.0,357.0 57.0,357.0 87.0,357.0 117.0,357.0 147.0,357.0 147.0,327.0 147.0,297.0 147.0,267.0 177.0,267.0 207.0,267.0 207.0,237.0 207.0,207.0 207.0,177.0 237.0,177.0 267.0,177.0 297.0,177.0 297.0,207.0 297.0,237.0 327.0,237.0 297.0,237.0 297.0,267.0 297.0,297.0 267.0,297.0 297.0,297.0 297.0,267.0 297.0,237.0 327.0,237.0" fill="none" stroke="#1d4ed8" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
-<rect x="319.0" y="109.0" width="16" height="16" fill="#16a34a" stroke="#ffffff" stroke-width="1.5"/>
-<text x="327.0" y="120.0" font-size="9" fill="#ffffff" text-anchor="middle">C</text>
-<rect x="319.0" y="229.0" width="16" height="16" fill="#16a34a" stroke="#ffffff" stroke-width="1.5"/>
-<text x="327.0" y="240.0" font-size="9" fill="#ffffff" text-anchor="middle">C</text>
-<rect x="199.0" y="259.0" width="16" height="16" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
-<text x="207.0" y="270.0" font-size="9" fill="#ffffff" text-anchor="middle">R</text>
-<circle cx="27.0" cy="27.0" r="10" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"/>
-<text x="27.0" y="30.5" font-size="10" fill="#ffffff" text-anchor="middle">B</text>
-<circle cx="147.0" cy="327.0" r="10" fill="#dc2626" stroke="#ffffff" stroke-width="1.5"/>
-<text x="147.0" y="330.5" font-size="10" fill="#ffffff" text-anchor="middle">2</text>
-<circle cx="27.0" cy="357.0" r="10" fill="#dc2626" stroke="#ffffff" stroke-width="1.5"/>
-<text x="27.0" y="360.5" font-size="10" fill="#ffffff" text-anchor="middle">3</text>
-<circle cx="267.0" cy="297.0" r="10" fill="#dc2626" stroke="#ffffff" stroke-width="1.5"/>
-<text x="267.0" y="300.5" font-size="10" fill="#ffffff" text-anchor="middle">4</text>
-<circle cx="147.0" cy="57.0" r="10" fill="#dc2626" stroke="#ffffff" stroke-width="1.5"/>
-<text x="147.0" y="60.5" font-size="10" fill="#ffffff" text-anchor="middle">1</text>
-</svg><figcaption>Figura A1. Entorno de la instancia semilla 23 (12×12, 4 POI, 1 estación de carga). Color = terreno; B = base; 1–4 = POI en el orden de visita; C = zona de comunicación; R = estación de carga; la línea azul es la ruta planificada (que pasa por R para recargar).</figcaption></figure>
-<figure><svg xmlns="http://www.w3.org/2000/svg" width="760" height="330" viewBox="0 0 760 330" font-family="Verdana, Segoe UI, sans-serif">
-<text x="380" y="24" font-size="15" font-weight="bold" text-anchor="middle">Búsqueda en la rejilla (media de 5 instancias 16×16)</text>
-<text x="200.0" y="52.0" font-size="12" font-weight="bold" text-anchor="middle">Costo de la ruta (sin DFS)</text>
-<rect x="58.0" y="94.9" width="44.0" height="175.1" fill="#2563eb"/>
-<text x="80.0" y="90.9" font-size="10" text-anchor="middle">25.9</text>
-<text x="80.0" y="284.0" font-size="9" text-anchor="middle">BFS</text>
-<rect x="138.0" y="145.7" width="44.0" height="124.3" fill="#2563eb"/>
-<text x="160.0" y="141.7" font-size="10" text-anchor="middle">18.4</text>
-<text x="160.0" y="284.0" font-size="9" text-anchor="middle">Dijkstra</text>
-<rect x="218.0" y="145.7" width="44.0" height="124.3" fill="#2563eb"/>
-<text x="240.0" y="141.7" font-size="10" text-anchor="middle">18.4</text>
-<text x="240.0" y="284.0" font-size="9" text-anchor="middle">A*</text>
-<rect x="298.0" y="86.0" width="44.0" height="184.0" fill="#2563eb"/>
-<text x="320.0" y="82.0" font-size="10" text-anchor="middle">27.2</text>
-<text x="320.0" y="284.0" font-size="9" text-anchor="middle">Voraz</text>
-<line x1="40.0" y1="270.0" x2="360.0" y2="270.0" stroke="#888" stroke-width="1"/>
-<text x="580.0" y="52.0" font-size="12" font-weight="bold" text-anchor="middle">Nodos expandidos</text>
-<rect x="434.4" y="111.2" width="35.2" height="158.8" fill="#dc2626"/>
-<text x="452.0" y="107.2" font-size="10" text-anchor="middle">105</text>
-<text x="452.0" y="284.0" font-size="9" text-anchor="middle">BFS</text>
-<rect x="498.4" y="86.0" width="35.2" height="184.0" fill="#dc2626"/>
-<text x="516.0" y="82.0" font-size="10" text-anchor="middle">122</text>
-<text x="516.0" y="284.0" font-size="9" text-anchor="middle">DFS</text>
-<rect x="562.4" y="119.5" width="35.2" height="150.5" fill="#dc2626"/>
-<text x="580.0" y="115.5" font-size="10" text-anchor="middle">99</text>
-<text x="580.0" y="284.0" font-size="9" text-anchor="middle">Dijkstra</text>
-<rect x="626.4" y="197.7" width="35.2" height="72.3" fill="#dc2626"/>
-<text x="644.0" y="193.7" font-size="10" text-anchor="middle">48</text>
-<text x="644.0" y="284.0" font-size="9" text-anchor="middle">A*</text>
-<rect x="690.4" y="251.0" width="35.2" height="19.0" fill="#dc2626"/>
-<text x="708.0" y="247.0" font-size="10" text-anchor="middle">13</text>
-<text x="708.0" y="284.0" font-size="9" text-anchor="middle">Voraz</text>
-<line x1="420.0" y1="270.0" x2="740.0" y2="270.0" stroke="#888" stroke-width="1"/>
-</svg><figcaption>Figura A2. Comparación de los algoritmos de búsqueda: costo de la ruta (izquierda; se omite DFS por su magnitud, 120) y nodos expandidos (derecha).</figcaption></figure>
-<figure><svg xmlns="http://www.w3.org/2000/svg" width="760" height="340" viewBox="0 0 760 340" font-family="Verdana, Segoe UI, sans-serif">
-<text x="380" y="26" font-size="15" font-weight="bold" text-anchor="middle">Planificación y política de reglas (módulo E)</text>
-<text x="200.0" y="52.0" font-size="12" font-weight="bold" text-anchor="middle">Costo del plan (media)</text>
-<rect x="58.0" y="112.6" width="44.0" height="157.4" fill="#0d9488"/>
-<text x="80.0" y="108.6" font-size="10" text-anchor="middle">137.2</text>
-<text x="80.0" y="284.0" font-size="10" text-anchor="middle">Óptimo</text>
-<rect x="138.0" y="108.3" width="44.0" height="161.7" fill="#0d9488"/>
-<text x="160.0" y="104.3" font-size="10" text-anchor="middle">141.0</text>
-<text x="160.0" y="284.0" font-size="10" text-anchor="middle">Hill C.</text>
-<rect x="218.0" y="108.3" width="44.0" height="161.7" fill="#0d9488"/>
-<text x="240.0" y="104.3" font-size="10" text-anchor="middle">141.0</text>
-<text x="240.0" y="284.0" font-size="10" text-anchor="middle">Recocido</text>
-<rect x="298.0" y="86.0" width="44.0" height="184.0" fill="#0d9488"/>
-<text x="320.0" y="82.0" font-size="10" text-anchor="middle">160.4</text>
-<text x="320.0" y="284.0" font-size="10" text-anchor="middle">Azar</text>
-<line x1="40.0" y1="270.0" x2="360.0" y2="270.0" stroke="#888" stroke-width="1"/>
-<text x="580.0" y="52.0" font-size="12" font-weight="bold" text-anchor="middle">Misiones completadas (%)</text>
-<rect x="444.0" y="86.0" width="58.7" height="184.0" fill="#7c3aed"/>
-<text x="473.3" y="82.0" font-size="10" text-anchor="middle">100</text>
-<text x="473.3" y="284.0" font-size="10" text-anchor="middle">12x12
-4 POI</text>
-<rect x="550.7" y="86.0" width="58.7" height="184.0" fill="#7c3aed"/>
-<text x="580.0" y="82.0" font-size="10" text-anchor="middle">100</text>
-<text x="580.0" y="284.0" font-size="10" text-anchor="middle">14x14
-6 POI</text>
-<rect x="657.3" y="86.0" width="58.7" height="184.0" fill="#7c3aed"/>
-<text x="686.7" y="82.0" font-size="10" text-anchor="middle">100</text>
-<text x="686.7" y="284.0" font-size="10" text-anchor="middle">16x16
-5 POI</text>
-<line x1="420.0" y1="270.0" x2="740.0" y2="270.0" stroke="#888" stroke-width="1"/>
-</svg><figcaption>Figura A3. Costo del plan por método (izquierda) y porcentaje de misiones completadas por la política de reglas (derecha).</figcaption></figure>
-<figure><svg xmlns="http://www.w3.org/2000/svg" width="760" height="360" viewBox="0 0 760 360" font-family="Verdana, Segoe UI, sans-serif">
-<text x="380" y="26" font-size="15" font-weight="bold" text-anchor="middle">Costo por algoritmo según la estructura del terreno (14×14, 5 POI)</text>
-<rect x="82.0" y="188.0" width="39.6" height="102.0" fill="#93c5fd"/>
-<text x="101.8" y="185.0" font-size="8" text-anchor="middle">12.5</text>
-<rect x="126.0" y="205.3" width="39.6" height="84.7" fill="#2563eb"/>
-<text x="145.8" y="202.3" font-size="8" text-anchor="middle">10.4</text>
-<rect x="170.0" y="205.3" width="39.6" height="84.7" fill="#111827"/>
-<text x="189.8" y="202.3" font-size="8" text-anchor="middle">10.4</text>
-<rect x="214.0" y="185.1" width="39.6" height="104.9" fill="#16a34a"/>
-<text x="233.8" y="182.1" font-size="8" text-anchor="middle">12.9</text>
-<text x="170.0" y="306.0" font-size="11" text-anchor="middle">flat</text>
-<rect x="302.0" y="143.7" width="39.6" height="146.3" fill="#93c5fd"/>
-<text x="321.8" y="140.7" font-size="8" text-anchor="middle">18.0</text>
-<rect x="346.0" y="173.7" width="39.6" height="116.3" fill="#2563eb"/>
-<text x="365.8" y="170.7" font-size="8" text-anchor="middle">14.3</text>
-<rect x="390.0" y="173.7" width="39.6" height="116.3" fill="#111827"/>
-<text x="409.8" y="170.7" font-size="8" text-anchor="middle">14.3</text>
-<rect x="434.0" y="139.4" width="39.6" height="150.6" fill="#16a34a"/>
-<text x="453.8" y="136.4" font-size="8" text-anchor="middle">18.5</text>
-<text x="390.0" y="306.0" font-size="11" text-anchor="middle">default</text>
-<rect x="522.0" y="105.5" width="39.6" height="184.5" fill="#93c5fd"/>
-<text x="541.8" y="102.5" font-size="8" text-anchor="middle">22.6</text>
-<rect x="566.0" y="141.4" width="39.6" height="148.6" fill="#2563eb"/>
-<text x="585.8" y="138.4" font-size="8" text-anchor="middle">18.2</text>
-<rect x="610.0" y="141.4" width="39.6" height="148.6" fill="#111827"/>
-<text x="629.8" y="138.4" font-size="8" text-anchor="middle">18.2</text>
-<rect x="654.0" y="100.0" width="39.6" height="190.0" fill="#16a34a"/>
-<text x="673.8" y="97.0" font-size="8" text-anchor="middle">23.3</text>
-<text x="610.0" y="306.0" font-size="11" text-anchor="middle">rough</text>
-<line x1="60" y1="290" x2="720" y2="290" stroke="#888"/>
-<rect x="60.0" y="32" width="11" height="11" fill="#93c5fd"/>
-<text x="75.0" y="42" font-size="10">BFS</text>
-<rect x="225.0" y="32" width="11" height="11" fill="#2563eb"/>
-<text x="240.0" y="42" font-size="10">Dijkstra</text>
-<rect x="390.0" y="32" width="11" height="11" fill="#111827"/>
-<text x="405.0" y="42" font-size="10">A*</text>
-<rect x="555.0" y="32" width="11" height="11" fill="#16a34a"/>
-<text x="570.0" y="42" font-size="10">Voraz</text>
-</svg><figcaption>Figura A4. Costo medio por algoritmo según la estructura del terreno (perfiles flat / default / rough, 14×14 y 5 POI).</figcaption></figure>
-<h2 class="appendix">Apéndice B — Tablas</h2>
-<p><strong>Tabla B1. Protocolo experimental.</strong></p>
-<table>
-<thead><tr>
-<th>Módulo</th>
-<th>Instancias</th>
-<th>Semillas</th>
-<th>Corridas</th>
-<th>Presupuesto</th>
-</tr></thead>
-<tbody>
-<tr><td>Búsqueda</td><td>16×16, 5 POI</td><td>11, 23, 37, 41, 59</td><td>5 × 5 × 5 alg. = 125</td><td>exhaustivo</td></tr>
-<tr><td>Estructuras</td><td>14×14, 5 POI (3 perfiles)</td><td>11, 23, 37, 41, 59</td><td>3 × 5 × 5 × 5 alg. = 375</td><td>exhaustivo</td></tr>
-<tr><td>Metaheurísticas</td><td>14×14, 4 POI</td><td>11, 23, 37, 41, 59</td><td>5 × 8 × 2 alg. = 80</td><td>2000 evaluaciones c/u</td></tr>
-<tr><td>Planificación</td><td>12×12, 4 POI, 1 carga</td><td>11, 23, 37, 41, 59</td><td>5 × 9 = 45</td><td>exacto</td></tr>
-<tr><td>Reglas (E)</td><td>12×12/4, 14×14/6, 16×16/5 (1–2 cargas)</td><td>1…20</td><td>3 × 20 = 60</td><td>heurístico</td></tr>
-</tbody></table>
-<p><strong>Tabla B2. Búsqueda, 16×16 y 5 POI (media ± desviación).</strong></p>
-<table>
-<thead><tr>
-<th>Algoritmo</th>
-<th>Costo</th>
-<th>Nodos expandidos</th>
-<th>Tiempo (ms)</th>
-</tr></thead>
-<tbody>
-<tr><td>BFS</td><td>25,92 ± 15,91</td><td>104,92 ± 64,63</td><td>0,13</td></tr>
-<tr><td>DFS</td><td>120,00 ± 59,94</td><td>121,56 ± 57,09</td><td>0,16</td></tr>
-<tr><td>Dijkstra</td><td>18,40 ± 10,55</td><td>99,40 ± 67,79</td><td>0,17</td></tr>
-<tr><td>A*</td><td>18,40 ± 10,55</td><td>47,76 ± 42,63</td><td>0,10</td></tr>
-<tr><td>Voraz</td><td>27,24 ± 17,24</td><td>12,52 ± 8,18</td><td>0,03</td></tr>
-</tbody></table>
-<p><strong>Tabla B3. Costo medio por estructura de terreno (14×14, 5 POI).</strong></p>
-<table>
-<thead><tr>
-<th>Perfil</th>
-<th>BFS</th>
-<th>DFS</th>
-<th>Dijkstra</th>
-<th>A*</th>
-<th>Voraz</th>
-</tr></thead>
-<tbody>
-<tr><td>flat</td><td>12,52</td><td>47,12</td><td>10,40</td><td>10,40</td><td>12,88</td></tr>
-<tr><td>default</td><td>17,96</td><td>68,68</td><td>14,28</td><td>14,28</td><td>18,48</td></tr>
-<tr><td>rough</td><td>22,64</td><td>85,48</td><td>18,24</td><td>18,24</td><td>23,32</td></tr>
-</tbody></table>
-<p><strong>Tabla B4. Metaheurísticas, 14×14 y 4 POI (media ± desviación).</strong></p>
-<table>
-<thead><tr>
-<th>Algoritmo</th>
-<th>Objetivo</th>
-<th>Costo del plan</th>
-<th>Tiempo (ms)</th>
-</tr></thead>
-<tbody>
-<tr><td>Hill Climbing</td><td>155,40 ± 13,69</td><td>168,90 ± 19,65</td><td>44,55</td></tr>
-<tr><td>Recocido Simulado</td><td>154,80 ± 13,32</td><td>168,90 ± 19,99</td><td>29,50</td></tr>
-</tbody></table>
-<p><strong>Tabla B5. Planificación, 12×12 y 4 POI con 1 estación de carga (media ± desviación).</strong></p>
-<table>
-<thead><tr>
-<th>Método</th>
-<th>Costo del plan</th>
-</tr></thead>
-<tbody>
-<tr><td>Óptimo (A* exacto)</td><td>137,20 ± 12,12</td></tr>
-<tr><td>Recocido Simulado + planificador</td><td>141,00 ± 13,96</td></tr>
-<tr><td>Hill Climbing + planificador</td><td>141,00 ± 13,96</td></tr>
-<tr><td>Orden aleatorio + planificador</td><td>160,43 ± 27,11</td></tr>
-</tbody></table>
-<p><strong>Tabla B6. Política basada en reglas (20 instancias por configuración).</strong></p>
-<table>
-<thead><tr>
-<th>Instancia</th>
-<th>Éxito</th>
-<th>Costo medio</th>
-</tr></thead>
-<tbody>
-<tr><td>12×12 / 4 POI</td><td>100 %</td><td>183,55 ± 27,09</td></tr>
-<tr><td>14×14 / 6 POI</td><td>100 %</td><td>291,85 ± 43,39</td></tr>
-<tr><td>16×16 / 5 POI</td><td>100 %</td><td>279,65 ± 47,49</td></tr>
-</tbody></table></body></html>
+<ul><li>Russell, S.; Norvig, P. <em>Artificial Intelligence: A Modern Approach</em> (4.ª ed.). Pearson, 2021.</li><li>Hart, P.; Nilsson, N.; Raphael, B. <em>A Formal Basis for the Heuristic Determination of Minimum Cost Paths</em>.</li></ul>
+<p>IEEE Transactions on Systems Science and Cybernetics, 1968.</p>
+<ul><li>Kirkpatrick, S.; Gelatt, C.; Vecchi, M. <em>Optimization by Simulated Annealing</em>. Science, 1983.</li></ul></body></html>

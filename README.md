@@ -27,7 +27,7 @@ proyecto/
 ├── outputs/              # resultados generados (CSV y JSON)
 ├── src/rover_ai/         # código fuente del paquete
 ├── pyproject.toml        # entorno declarado (empaquetado)
-├── requirements.txt      # dependencias (ninguna externa; ver notas)
+├── requirements.txt      
 └── README.md
 ```
 
