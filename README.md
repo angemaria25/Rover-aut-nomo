@@ -5,12 +5,12 @@ Simulación de un rover que explora un entorno discreto con recursos limitados
 clásica. El proyecto implementa tres módulos obligatorios/elegidos más un
 módulo opcional bonificable:
 
-| Módulo | Tipo | Archivo | Descripción |
-|---|---|---|---|
-| A. Búsqueda | obligatorio | `src/rover_ai/search.py` | BFS, DFS, Dijkstra, A* y voraz; rutas entre objetivos con costo variable por terreno. |
-| B. Planificación | elegido (B o C) | `src/rover_ai/planning.py` | Acciones con precondiciones y efectos; integra la búsqueda para cada movimiento. |
-| D. Metaheurísticas | obligatorio | `src/rover_ai/metaheuristics.py` | Hill Climbing y Recocido Simulado para el orden de visita de los POI. |
-| E. Reglas | opcional (bonificable) | `src/rover_ai/rules.py` | Motor de encadenamiento hacia adelante para las decisiones del rover. |
+| Módulo | Archivo | Descripción |
+|---|---|---|
+| A. Búsqueda | `src/rover_ai/search.py` | BFS, DFS, Dijkstra, A* y voraz; rutas entre objetivos con costo variable por terreno. |
+| B. Planificación | `src/rover_ai/planning.py` | Acciones con precondiciones y efectos; integra la búsqueda para cada movimiento. |
+| D. Metaheurísticas | `src/rover_ai/metaheuristics.py` | Hill Climbing y Recocido Simulado para el orden de visita de los POI. |
+| E. Reglas | `src/rover_ai/rules.py` | Motor de encadenamiento hacia adelante para las decisiones del rover. |
 
 Apoyo: `environment.py` (generador de instancias por semilla, parametrizable en
 tamaño, estructura y puntos de carga, y con solución garantizada), `simulation.py`
